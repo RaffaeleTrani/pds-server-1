@@ -19,10 +19,11 @@ signals:
 public slots:
     void newConnection();
     void DBConnection();
+    void readFromClient();
 private:
     QTcpServer *server;
     QList<QTcpSocket *>SocketList;
-    int counter;
+    int connectedClients;
 };
 
 #endif // MYTCPSERVER_H

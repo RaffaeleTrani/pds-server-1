@@ -1,14 +1,16 @@
 #include "mytcpserver.h"
 #include <QtSql>
 
+#define MAX_CLIENTS 2
+
 MyTcpServer::MyTcpServer(QObject *parent) :
     QObject(parent)
 {
     server = new QTcpServer(this);
-    this->counter = 0;
+    this->connectedClients = 0;
     // whenever a user connects, it will emit signal
-    connect(server, SIGNAL(newConnection()),
-            this, SLOT(newConnection()));
+    connect(server, SIGNAL(newConnection()), this, SLOT(newConnection()));
+    connect( this, SIGNAL(readyRead()), this, SLOT(readFromClient()));
 
     if(!server->listen(QHostAddress::Any, 9999))
     {
@@ -25,7 +27,7 @@ MyTcpServer::MyTcpServer(QObject *parent) :
 
 void MyTcpServer::newConnection()
 {
-    this->counter++;
+    this->connectedClients++;
 
     // need to grab the socket
     QTcpSocket *socket = server->nextPendingConnection();
@@ -35,7 +37,7 @@ void MyTcpServer::newConnection()
     this->SocketList.append(socket);
 
     socket->write("Hello client\r\n");
-    if (this->counter == 2) {
+    if (this->connectedClients == MAX_CLIENTS) {
         for (QTcpSocket *s : this->SocketList) {
             s->write("Ok");
         }
@@ -60,4 +62,14 @@ void MyTcpServer::DBConnection() {
     else
         qDebug() << "Impossible to connect to server.";
 
+}
+
+void MyTcpServer::readFromClient(){
+    QTcpSocket* conn = qobject_cast<QTcpSocket*>(sender());
+    QString data;
+
+    while ( conn->canReadLine() ) {
+        data = QString(conn->readLine());
+        //store data in db
+    }
 }
