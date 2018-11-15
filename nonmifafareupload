@@ -1,0 +1,124 @@
+#include "mytcpserver.h"
+#include <QtSql>
+#include <QRegExp>
+#include <stdio.h>
+#define MAX_CLIENTS 2
+
+using namespace std;
+
+MyTcpServer::MyTcpServer(QObject *parent) :
+    QObject(parent)
+{
+    server = new QTcpServer(this);
+    this->counter = 0;
+    // whenever a user connects, it will emit signal
+    connect(server, SIGNAL(newConnection()),
+            this, SLOT(newConnection()));
+    if(!server->listen(QHostAddress::Any, 9999))
+    {
+        qDebug() << "Server could not start";
+    }
+    else
+    {
+        qDebug() << "Server started!";
+    }
+
+    DBConnection();
+
+}
+
+void MyTcpServer::newConnection()
+{
+    this->counter++;
+
+    // need to grab the socket
+    QTcpSocket *socket = server->nextPendingConnection();
+
+    qDebug() << "New connection from another client.";
+
+    this->SocketList.append(socket);
+    connect( socket, SIGNAL(readyRead()), this, SLOT(readFromClient()));
+    socket->write("Hello client\r\n");
+    if (this->counter == MAX_CLIENTS) {
+        for (QTcpSocket *s : this->SocketList) {
+            s->write("Ok");
+        }
+    }
+/*
+    socket->flush();
+
+    socket->waitForBytesWritten(3000);
+
+    socket->close(); */
+}
+
+void MyTcpServer::DBConnection() {
+    QSqlDatabase db = QSqlDatabase::addDatabase("QMYSQL");
+    db.setHostName("localhost");
+    db.setUserName("root");
+    db.setPassword("");
+    db.setDatabaseName("databasepds");
+
+
+    if (db.open())
+        qDebug() << "Connection to server extablished.";
+    else
+        qDebug() << "Impossible to connect to server.";
+    }
+
+
+void MyTcpServer::readFromClient(){
+    QTcpSocket* conn = qobject_cast<QTcpSocket*>(sender());
+    QString data;
+
+    while ( conn->canReadLine() ) {
+        data = QString(conn->readLine());
+        data.remove(',');
+        const char *data2 = data.toStdString().c_str();
+        qDebug() << data2;
+        QSqlQuery query;
+        int microsec;
+        QString hash, s, micros, mac, db;
+        QTextStream stream(&data);
+        stream >> hash >> mac >> s >> db;
+//        int vars = sscanf(data2,"%d, %s, %d:%d, %s\r\n", &hash, &mac, &s, &micros, &db);
+        QStringList lista = s.split(':');
+        microsec = (lista.at(0)).toInt()*1000000 + (lista.at(1)).toInt();
+
+        // moltiplica i secondi con i millisecondi
+        micros += QString::number(microsec);
+        if (query.exec("SELECT * FROM mac")) {
+            while (query.next())
+                qDebug() << "trovato";
+        }
+        QStringList listaMAC;
+        QString querystring = "INSERT INTO pacchetti (ESP, HASH, MAC, TIMESTAMP, SEGNALE) VALUES (1, ", MAC;
+        querystring += hash + ", '" + mac + "', " + micros + ", " + db + ")";
+        qDebug() << querystring;
+        if (query.exec(querystring)) {
+            qDebug() << "Query andata a buon fine";
+        }
+        else
+            qDebug() << "Query fallita";
+
+        QString querystring2 = "SESELECT ESP, HASH, MAC FROM pacchetti GROUP BY HASH, MAC HAVING COUNT(*) = 4" + MAX_CLIENTS;
+        QString querystring3;
+        qDebug() << querystring2;
+       if (query.exec(querystring2)) {
+           qDebug() << "Query2 andata a buon fine";
+           querystring3 = "INSERT INTO mac(MAC) VALUES (";
+           while (query.next()) {
+                querystring3+= "'" + query.value("MAC").toString() + "'), ";
+           }
+        }
+       else
+           qDebug() << "Query2 fallita";
+       querystring3.remove(querystring3.length()-2, 2);
+       qDebug() << querystring3;
+       if (query.exec(querystring3))
+           qDebug() << "Query3 andata a buon fine";
+       else
+           qDebug() << "Query3 fallita";
+        //pulisci stringa
+    }
+}
